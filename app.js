@@ -441,6 +441,22 @@ function clearTargetQuery() {
   runSearch({ live: true })
 }
 
+function resetNavigatorInputsForAutoDefaults() {
+  currentInput.value = ""
+  targetInput.value = ""
+  clearInputReading(currentInput)
+  clearInputReading(targetInput)
+  queryTouchedState.current = false
+  queryTouchedState.target = false
+  querySegmentState.current = null
+  querySegmentState.target = null
+  preferredSplitTargetSegmentIndex = null
+  setCurrentInputSource("manual")
+  setCurrentPhotoStatus("")
+  renderAllSegmentPickers()
+  syncInlineClearButtons()
+}
+
 function updateOcrLoggerStatus(message) {
   if (!ocrRecognizingNow || !message || typeof message.status !== "string") return
   const status = normalizeSpaces(message.status.toLowerCase())
@@ -5062,6 +5078,7 @@ async function init() {
     buildIndexes()
     buildSuggestions()
     setStatus("מוכן", "ready")
+    resetNavigatorInputsForAutoDefaults()
     loadAutoReadings()
   } catch (error) {
     setStatus("שגיאה", "error")
