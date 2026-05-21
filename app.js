@@ -2706,15 +2706,7 @@ function getPreviousReadingsForTarget(targetReading, { includeWeekday = false } 
 
 function getDefaultSourceForTarget(targetReading) {
   const candidates = getPreviousReadingsForTarget(targetReading, { includeWeekday: false })
-  if (!candidates.length) return null
-
-  let sourceReading = candidates.at(-1)
-  if (hasSecondBook(targetReading) && !hasSecondBook(sourceReading)) {
-    const latestWithSecondBook = [...candidates].reverse().find((reading) => hasSecondBook(reading))
-    if (latestWithSecondBook) sourceReading = latestWithSecondBook
-  }
-
-  return sourceReading
+  return candidates.at(-1) || null
 }
 
 function describeScrollDelta(delta) {
