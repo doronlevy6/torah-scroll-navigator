@@ -208,6 +208,7 @@ let queryTouchedState = {
   current: false,
   target: false,
 }
+let initialAutoDefaultsPending = true
 let viewerState = {
   open: false,
   column: 1,
@@ -3360,7 +3361,7 @@ function renderReadingDefaults() {
   readingDefaultsEl.innerHTML = cards.join("")
 }
 
-function applyAutoReadingDefaults() {
+function applyAutoReadingDefaults({ force = false } = {}) {
   let changed = false
   let targetChanged = false
   let currentChanged = false
@@ -3370,11 +3371,13 @@ function applyAutoReadingDefaults() {
     ? getDefaultSourceForTarget(defaultTargetReading)
     : autoReadingsState.previous
   const shouldFillCurrent =
-    !queryTouchedState.current &&
-    (!normalizeSpaces(currentInput.value) || !currentInput.dataset.readingDate)
+    force ||
+    (!queryTouchedState.current &&
+      (!normalizeSpaces(currentInput.value) || !currentInput.dataset.readingDate))
   const shouldFillTarget =
-    !queryTouchedState.target &&
-    (!normalizeSpaces(targetInput.value) || !targetInput.dataset.readingDate)
+    force ||
+    (!queryTouchedState.target &&
+      (!normalizeSpaces(targetInput.value) || !targetInput.dataset.readingDate))
 
   if (shouldFillCurrent && defaultSourceReading) {
     setInputReading(currentInput, defaultSourceReading)
@@ -3487,7 +3490,8 @@ async function loadAutoReadings() {
       timesState.readingTypeLabel = timesReadingMeta.typeLabel
       renderTimesSummary()
     }
-    const defaultsChanged = applyAutoReadingDefaults()
+    const defaultsChanged = applyAutoReadingDefaults({ force: initialAutoDefaultsPending })
+    initialAutoDefaultsPending = false
     if (!defaultsChanged && (
       getInputScheduledReading("current") ||
       getInputScheduledReading("target") ||
