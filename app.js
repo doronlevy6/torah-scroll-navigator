@@ -2457,12 +2457,55 @@ function buildSegmentLabels(segments) {
   }))
 }
 
+function getVerseByRefOrNearest(book, chapter, verse, direction = "exact") {
+  const exact = navigatorData.verseByKey.get(`${book}:${chapter}:${verse}`)
+  if (exact || direction === "exact") return exact || null
+
+  const chapterMap = navigatorData.bookChapters.get(book)
+  if (!chapterMap) return null
+  const chapters = [...chapterMap.keys()].sort((a, b) => a - b)
+  if (!chapters.length) return null
+
+  if (direction === "previous") {
+    for (let currentChapter = chapter; currentChapter >= chapters[0]; currentChapter -= 1) {
+      const maxVerse = chapterMap.get(currentChapter)
+      if (!maxVerse) continue
+      const candidateVerse = currentChapter === chapter ? Math.min(verse, maxVerse) : maxVerse
+      for (let currentVerse = candidateVerse; currentVerse >= 1; currentVerse -= 1) {
+        const candidate = navigatorData.verseByKey.get(`${book}:${currentChapter}:${currentVerse}`)
+        if (candidate) return candidate
+      }
+    }
+  }
+
+  if (direction === "next") {
+    const lastChapter = chapters.at(-1)
+    for (let currentChapter = chapter; currentChapter <= lastChapter; currentChapter += 1) {
+      const maxVerse = chapterMap.get(currentChapter)
+      if (!maxVerse) continue
+      const startVerse = currentChapter === chapter ? verse : 1
+      for (let currentVerse = startVerse; currentVerse <= maxVerse; currentVerse += 1) {
+        const candidate = navigatorData.verseByKey.get(`${book}:${currentChapter}:${currentVerse}`)
+        if (candidate) return candidate
+      }
+    }
+  }
+
+  return null
+}
+
 function createReadingSegment(range, index) {
-  const startVerse = navigatorData.verseByKey.get(
-    `${range.book}:${range.start.chapter}:${range.start.verse}`,
+  const startVerse = getVerseByRefOrNearest(
+    range.book,
+    range.start.chapter,
+    range.start.verse,
+    "next",
   )
-  const endVerse = navigatorData.verseByKey.get(
-    `${range.book}:${range.end.chapter}:${range.end.verse}`,
+  const endVerse = getVerseByRefOrNearest(
+    range.book,
+    range.end.chapter,
+    range.end.verse,
+    "previous",
   )
 
   if (!startVerse || !endVerse) return null
