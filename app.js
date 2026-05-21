@@ -5095,7 +5095,6 @@ function renderViewer(summary = getColumnSummary(viewerState.column)) {
 async function init() {
   try {
     setStatus("טוען...")
-    renderBuildInfo()
     loadTimesSettings()
     setAppMode(appState.mode)
     renderTimesSummary()
