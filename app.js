@@ -209,6 +209,8 @@ let queryTouchedState = {
   target: false,
 }
 let initialAutoDefaultsPending = true
+let initialAutoDefaultsLockUntil = 0
+let initialAutoDefaultsToken = 0
 let viewerState = {
   open: false,
   column: 1,
@@ -413,6 +415,20 @@ function setInputReading(input, reading, value = "") {
   if (input === targetInput) queryTouchedState.target = false
 }
 
+function markQueryTouched(fieldKey, input) {
+  if (
+    initialAutoDefaultsLockUntil &&
+    Date.now() < initialAutoDefaultsLockUntil &&
+    document.activeElement !== input
+  ) {
+    return
+  }
+  if (fieldKey === "current" || fieldKey === "target") {
+    queryTouchedState[fieldKey] = true
+  }
+  initialAutoDefaultsLockUntil = 0
+}
+
 function getInputScheduledReading(fieldKey) {
   const input = getInputElementForField(fieldKey)
   const readingDate = input?.dataset?.readingDate || ""
@@ -449,6 +465,9 @@ function resetNavigatorInputsForAutoDefaults() {
   clearInputReading(targetInput)
   queryTouchedState.current = false
   queryTouchedState.target = false
+  initialAutoDefaultsPending = true
+  initialAutoDefaultsLockUntil = Date.now() + 3500
+  initialAutoDefaultsToken += 1
   querySegmentState.current = null
   querySegmentState.target = null
   preferredSplitTargetSegmentIndex = null
@@ -456,6 +475,19 @@ function resetNavigatorInputsForAutoDefaults() {
   setCurrentPhotoStatus("")
   renderAllSegmentPickers()
   syncInlineClearButtons()
+}
+
+function scheduleInitialAutoDefaultsReapply() {
+  const token = ++initialAutoDefaultsToken
+  initialAutoDefaultsLockUntil = Date.now() + 3500
+  ;[50, 250, 750, 1500, 3000].forEach((delay) => {
+    window.setTimeout(() => {
+      if (token !== initialAutoDefaultsToken) return
+      if (!initialAutoDefaultsLockUntil || Date.now() > initialAutoDefaultsLockUntil) return
+      if (document.activeElement === currentInput || document.activeElement === targetInput) return
+      applyAutoReadingDefaults({ force: true })
+    }, delay)
+  })
 }
 
 function updateOcrLoggerStatus(message) {
@@ -3490,8 +3522,12 @@ async function loadAutoReadings() {
       timesState.readingTypeLabel = timesReadingMeta.typeLabel
       renderTimesSummary()
     }
-    const defaultsChanged = applyAutoReadingDefaults({ force: initialAutoDefaultsPending })
+    const shouldForceInitialDefaults = initialAutoDefaultsPending
+    const defaultsChanged = applyAutoReadingDefaults({ force: shouldForceInitialDefaults })
     initialAutoDefaultsPending = false
+    if (shouldForceInitialDefaults) {
+      scheduleInitialAutoDefaultsReapply()
+    }
     if (!defaultsChanged && (
       getInputScheduledReading("current") ||
       getInputScheduledReading("target") ||
@@ -5246,7 +5282,7 @@ formEl?.addEventListener("submit", (event) => {
 
 currentInput?.addEventListener("input", () => {
   clearInputReading(currentInput)
-  queryTouchedState.current = true
+  markQueryTouched("current", currentInput)
   setCurrentInputSource("manual")
   setCurrentPhotoStatus("")
   renderSegmentPicker("current")
@@ -5256,7 +5292,7 @@ currentInput?.addEventListener("input", () => {
 
 targetInput?.addEventListener("input", () => {
   clearInputReading(targetInput)
-  queryTouchedState.target = true
+  markQueryTouched("target", targetInput)
   preferredSplitTargetSegmentIndex = null
   renderSegmentPicker("target")
   syncInlineClearButtons()
