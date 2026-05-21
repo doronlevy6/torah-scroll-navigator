@@ -2613,7 +2613,7 @@ function getScheduledReadingFromQuery(query) {
 
 function getSegmentPickerOptions(query) {
   const value = normalizeSpaces(query)
-  if (!value || !value.includes("+")) return []
+  if (!value) return []
   const reading = getScheduledReadingFromQuery(value)
   return reading?.segments?.length > 1 ? reading.segments : []
 }
