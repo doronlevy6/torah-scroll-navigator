@@ -1,5 +1,4 @@
 const statusEl = document.getElementById("data-status")
-const buildInfoEl = document.getElementById("build-info")
 const resultsEl = document.getElementById("results")
 const previewEl = document.getElementById("column-preview")
 const formEl = document.getElementById("navigator-form")
@@ -761,24 +760,6 @@ function clampColumn(column) {
 function setStatus(text, mode = "") {
   statusEl.textContent = text
   statusEl.className = `status-pill${mode ? ` ${mode}` : ""}`
-}
-
-function getAppAssetVersion() {
-  const script = document.querySelector('script[src*="app.js?v="]')
-  if (!script) return "dev"
-  try {
-    const src = script.getAttribute("src") || ""
-    const version = new URL(src, window.location.href).searchParams.get("v")
-    return version || "dev"
-  } catch {
-    return "dev"
-  }
-}
-
-function renderBuildInfo(extra = "") {
-  if (!buildInfoEl) return
-  const version = getAppAssetVersion()
-  buildInfoEl.textContent = extra ? `גרסה ${version} · ${extra}` : `גרסה ${version}`
 }
 
 function formatNumber(value, digits = 1) {
@@ -3504,7 +3485,6 @@ async function loadAutoReadings() {
     autoReadingsState.readings = readings
     autoReadingsState.previous = primaryReadings.filter((reading) => reading.date <= today).at(-1) || null
     autoReadingsState.next = primaryReadings.find((reading) => reading.date >= today) || primaryReadings.at(-1) || null
-    renderBuildInfo(`תאריך חישוב ${today}`)
     const defaultTargetReading = getDefaultTargetReading(today)
     autoReadingsState.today = today
     autoReadingsState.rangeStart = start
