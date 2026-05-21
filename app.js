@@ -5109,6 +5109,7 @@ async function init() {
     renderJournal()
     renderTodayInfo()
     syncInlineClearButtons()
+    resetNavigatorInputsForAutoDefaults()
     loadTodayInfo()
     loadHolidayTimes(timesState.selectedDate)
     const response = await fetch("./data/navigator_data.json")
@@ -5118,7 +5119,6 @@ async function init() {
     buildIndexes()
     buildSuggestions()
     setStatus("מוכן", "ready")
-    resetNavigatorInputsForAutoDefaults()
     loadAutoReadings()
   } catch (error) {
     setStatus("שגיאה", "error")
