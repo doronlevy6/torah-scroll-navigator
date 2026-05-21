@@ -204,6 +204,10 @@ let querySegmentState = {
   current: null,
   target: null,
 }
+let queryTouchedState = {
+  current: false,
+  target: false,
+}
 let viewerState = {
   open: false,
   column: 1,
@@ -404,6 +408,8 @@ function setInputReading(input, reading, value = "") {
   if (!input || !reading) return
   input.value = value || formatReadingDateInputValue(reading)
   input.dataset.readingDate = reading.date
+  if (input === currentInput) queryTouchedState.current = false
+  if (input === targetInput) queryTouchedState.target = false
 }
 
 function getInputScheduledReading(fieldKey) {
@@ -415,6 +421,7 @@ function getInputScheduledReading(fieldKey) {
 function clearCurrentQuery({ clearPhotoStatus = true } = {}) {
   currentInput.value = ""
   clearInputReading(currentInput)
+  queryTouchedState.current = true
   querySegmentState.current = null
   setCurrentInputSource("manual")
   if (clearPhotoStatus) setCurrentPhotoStatus("")
@@ -426,6 +433,7 @@ function clearCurrentQuery({ clearPhotoStatus = true } = {}) {
 function clearTargetQuery() {
   targetInput.value = ""
   clearInputReading(targetInput)
+  queryTouchedState.target = true
   querySegmentState.target = null
   preferredSplitTargetSegmentIndex = null
   renderSegmentPicker("target")
@@ -508,6 +516,7 @@ function getOcrStatusParts(detection) {
 function applyDetectedCurrentColumn(detection) {
   currentInput.value = `עמודה ${detection.column}`
   clearInputReading(currentInput)
+  queryTouchedState.current = true
   querySegmentState.current = null
   setCurrentInputSource("photo")
   renderSegmentPicker("current")
@@ -2698,6 +2707,12 @@ function renderSegmentPicker(fieldKey) {
   const picker = fieldKey === "current" ? currentSegmentPicker : targetSegmentPicker
   const input = fieldKey === "current" ? currentInput : targetInput
   if (!picker || !input) return
+  if (fieldKey === "current") {
+    picker.hidden = true
+    picker.innerHTML = ""
+    querySegmentState.current = null
+    return
+  }
 
   const options = getSegmentPickerOptions(input.value, fieldKey)
   if (!options.length) {
@@ -3338,14 +3353,20 @@ function applyAutoReadingDefaults() {
   const defaultSourceReading = defaultTargetReading
     ? getDefaultSourceForTarget(defaultTargetReading)
     : autoReadingsState.previous
+  const shouldFillCurrent =
+    !queryTouchedState.current &&
+    (!normalizeSpaces(currentInput.value) || !currentInput.dataset.readingDate)
+  const shouldFillTarget =
+    !queryTouchedState.target &&
+    (!normalizeSpaces(targetInput.value) || !targetInput.dataset.readingDate)
 
-  if (!normalizeSpaces(currentInput.value) && defaultSourceReading) {
+  if (shouldFillCurrent && defaultSourceReading) {
     setInputReading(currentInput, defaultSourceReading)
     changed = true
     currentChanged = true
   }
 
-  if (!normalizeSpaces(targetInput.value) && defaultTargetReading) {
+  if (shouldFillTarget && defaultTargetReading) {
     setInputReading(targetInput, defaultTargetReading)
     changed = true
     targetChanged = true
@@ -3357,6 +3378,7 @@ function applyAutoReadingDefaults() {
   renderAllSegmentPickers()
   syncInlineClearButtons()
   if (changed) runSearch({ live: true })
+  return changed
 }
 
 function getHebcalItemKey(item) {
@@ -3449,15 +3471,14 @@ async function loadAutoReadings() {
       timesState.readingTypeLabel = timesReadingMeta.typeLabel
       renderTimesSummary()
     }
-    if (
+    const defaultsChanged = applyAutoReadingDefaults()
+    if (!defaultsChanged && (
       getInputScheduledReading("current") ||
       getInputScheduledReading("target") ||
       getScheduledReadingFromQuery(currentInput.value) ||
       getScheduledReadingFromQuery(targetInput.value)
-    ) {
+    )) {
       runSearch({ live: true })
-    } else {
-      applyAutoReadingDefaults()
     }
   }
 }
@@ -4820,6 +4841,8 @@ function resetState() {
   targetInput.value = ""
   clearInputReading(currentInput)
   clearInputReading(targetInput)
+  queryTouchedState.current = true
+  queryTouchedState.target = true
   querySegmentState.current = null
   querySegmentState.target = null
   setCurrentPhotoStatus("")
@@ -5202,6 +5225,7 @@ formEl?.addEventListener("submit", (event) => {
 
 currentInput?.addEventListener("input", () => {
   clearInputReading(currentInput)
+  queryTouchedState.current = true
   setCurrentInputSource("manual")
   setCurrentPhotoStatus("")
   renderSegmentPicker("current")
@@ -5211,6 +5235,7 @@ currentInput?.addEventListener("input", () => {
 
 targetInput?.addEventListener("input", () => {
   clearInputReading(targetInput)
+  queryTouchedState.target = true
   preferredSplitTargetSegmentIndex = null
   renderSegmentPicker("target")
   syncInlineClearButtons()
