@@ -389,8 +389,32 @@ function tagCurrentLocationWithSource(location) {
   }
 }
 
+function getInputElementForField(fieldKey) {
+  if (fieldKey === "current") return currentInput
+  if (fieldKey === "target") return targetInput
+  return null
+}
+
+function clearInputReading(input) {
+  if (!input) return
+  delete input.dataset.readingDate
+}
+
+function setInputReading(input, reading, value = "") {
+  if (!input || !reading) return
+  input.value = value || formatReadingDateInputValue(reading)
+  input.dataset.readingDate = reading.date
+}
+
+function getInputScheduledReading(fieldKey) {
+  const input = getInputElementForField(fieldKey)
+  const readingDate = input?.dataset?.readingDate || ""
+  return readingDate ? getReadingByDate(readingDate) : null
+}
+
 function clearCurrentQuery({ clearPhotoStatus = true } = {}) {
   currentInput.value = ""
+  clearInputReading(currentInput)
   querySegmentState.current = null
   setCurrentInputSource("manual")
   if (clearPhotoStatus) setCurrentPhotoStatus("")
@@ -401,6 +425,7 @@ function clearCurrentQuery({ clearPhotoStatus = true } = {}) {
 
 function clearTargetQuery() {
   targetInput.value = ""
+  clearInputReading(targetInput)
   querySegmentState.target = null
   preferredSplitTargetSegmentIndex = null
   renderSegmentPicker("target")
@@ -482,6 +507,7 @@ function getOcrStatusParts(detection) {
 
 function applyDetectedCurrentColumn(detection) {
   currentInput.value = `עמודה ${detection.column}`
+  clearInputReading(currentInput)
   querySegmentState.current = null
   setCurrentInputSource("photo")
   renderSegmentPicker("current")
@@ -798,19 +824,26 @@ function formatReadingDateInputValue(reading) {
   return `${formatHebrewDay(reading.date)} · ${reading.name}`
 }
 
+function normalizeHebrewDatePrefixKey(value) {
+  return normalizeKey(value)
+    .replace(/\bסיוון\b/gu, "סיון")
+    .replace(/\bמרחשוון\b/gu, "מרחשון")
+    .replace(/\bחשוון\b/gu, "חשון")
+}
+
 function getReadingFromHebrewPrefixQuery(query) {
   const value = normalizeSpaces(query)
   if (!value || !value.includes("·")) return null
 
   const [prefixRaw, ...nameParts] = value.split("·")
-  const prefixKey = normalizeKey(prefixRaw || "")
+  const prefixKey = normalizeHebrewDatePrefixKey(prefixRaw || "")
   const nameKey = normalizeKey(nameParts.join("·"))
   if (!prefixKey) return null
 
   return (
     autoReadingsState.readings.find((reading) => {
-      const readingPrefixKey = normalizeKey(formatHebrewDay(reading.date))
-      const readingPrefixNumericKey = normalizeKey(formatHebrewDayNumeric(reading.date))
+      const readingPrefixKey = normalizeHebrewDatePrefixKey(formatHebrewDay(reading.date))
+      const readingPrefixNumericKey = normalizeHebrewDatePrefixKey(formatHebrewDayNumeric(reading.date))
       if (readingPrefixKey !== prefixKey && readingPrefixNumericKey !== prefixKey) return false
       if (!nameKey) return true
       return normalizeKey(reading.name) === nameKey
@@ -2611,10 +2644,10 @@ function getScheduledReadingFromQuery(query) {
   return autoReadingsState[scheduledReadingKey] || null
 }
 
-function getSegmentPickerOptions(query) {
+function getSegmentPickerOptions(query, fieldKey = "") {
   const value = normalizeSpaces(query)
   if (!value) return []
-  const reading = getScheduledReadingFromQuery(value)
+  const reading = getInputScheduledReading(fieldKey) || getScheduledReadingFromQuery(value)
   return reading?.segments?.length > 1 ? reading.segments : []
 }
 
@@ -2623,7 +2656,7 @@ function renderSegmentPicker(fieldKey) {
   const input = fieldKey === "current" ? currentInput : targetInput
   if (!picker || !input) return
 
-  const options = getSegmentPickerOptions(input.value)
+  const options = getSegmentPickerOptions(input.value, fieldKey)
   if (!options.length) {
     picker.hidden = true
     picker.innerHTML = ""
@@ -3087,7 +3120,9 @@ function openCalendarModal(fieldKey = "target") {
       : journalState.fieldKey === "target"
         ? getDefaultTargetReading() || autoReadingsState.previous
         : getReadingByDate(timesState.selectedDate) || getDefaultTargetReading() || autoReadingsState.previous
-  const selectedReading = fieldInput ? getScheduledReadingFromQuery(fieldInput.value) || fallbackReading : fallbackReading
+  const selectedReading = fieldInput
+    ? getInputScheduledReading(journalState.fieldKey) || getScheduledReadingFromQuery(fieldInput.value) || fallbackReading
+    : fallbackReading
   const targetDate =
     (fieldInput ? parseIsoDateFromQuery(fieldInput.value) : "") ||
     selectedReading?.date ||
@@ -3138,13 +3173,13 @@ function applyJournalReading(dateString) {
   }
 
   if (journalState.fieldKey === "current") {
-    currentInput.value = formatReadingDateInputValue(selectedReading)
+    setInputReading(currentInput, selectedReading)
     setCurrentInputSource("manual")
     setCurrentPhotoStatus("")
     querySegmentState.current = null
     renderSegmentPicker("current")
   } else {
-    targetInput.value = formatReadingDateInputValue(selectedReading)
+    setInputReading(targetInput, selectedReading)
     preferredSplitTargetSegmentIndex = null
     querySegmentState.target = null
     renderSegmentPicker("target")
@@ -3262,13 +3297,13 @@ function applyAutoReadingDefaults() {
     : autoReadingsState.previous
 
   if (!normalizeSpaces(currentInput.value) && defaultSourceReading) {
-    currentInput.value = formatReadingDateInputValue(defaultSourceReading)
+    setInputReading(currentInput, defaultSourceReading)
     changed = true
     currentChanged = true
   }
 
   if (!normalizeSpaces(targetInput.value) && defaultTargetReading) {
-    targetInput.value = formatReadingDateInputValue(defaultTargetReading)
+    setInputReading(targetInput, defaultTargetReading)
     changed = true
     targetChanged = true
   }
@@ -3371,7 +3406,12 @@ async function loadAutoReadings() {
       timesState.readingTypeLabel = timesReadingMeta.typeLabel
       renderTimesSummary()
     }
-    if (getScheduledReadingFromQuery(currentInput.value) || getScheduledReadingFromQuery(targetInput.value)) {
+    if (
+      getInputScheduledReading("current") ||
+      getInputScheduledReading("target") ||
+      getScheduledReadingFromQuery(currentInput.value) ||
+      getScheduledReadingFromQuery(targetInput.value)
+    ) {
       runSearch({ live: true })
     } else {
       applyAutoReadingDefaults()
@@ -3772,6 +3812,16 @@ function highlightMatchText(originalText, match, queryText) {
 function resolveStandardQuery(query, options = {}) {
   const value = normalizeSpaces(query)
   if (!value) throw new Error("צריך למלא לפחות שדה אחד.")
+
+  const inputReading = getInputScheduledReading(options.fieldKey)
+  if (inputReading) {
+    return createScheduledReadingLocation(
+      inputReading,
+      getReadingAnchorRole(options.fieldKey),
+      value,
+      options,
+    )
+  }
 
   const scheduledReadingKey = getScheduledReadingKey(value)
   if (scheduledReadingKey) {
@@ -4725,6 +4775,8 @@ function resetState() {
   setCurrentInputSource("manual")
   currentInput.value = ""
   targetInput.value = ""
+  clearInputReading(currentInput)
+  clearInputReading(targetInput)
   querySegmentState.current = null
   querySegmentState.target = null
   setCurrentPhotoStatus("")
@@ -5106,6 +5158,7 @@ formEl?.addEventListener("submit", (event) => {
 })
 
 currentInput?.addEventListener("input", () => {
+  clearInputReading(currentInput)
   setCurrentInputSource("manual")
   setCurrentPhotoStatus("")
   renderSegmentPicker("current")
@@ -5114,6 +5167,7 @@ currentInput?.addEventListener("input", () => {
 })
 
 targetInput?.addEventListener("input", () => {
+  clearInputReading(targetInput)
   preferredSplitTargetSegmentIndex = null
   renderSegmentPicker("target")
   syncInlineClearButtons()
@@ -5162,13 +5216,13 @@ readingDefaultsEl?.addEventListener("click", (event) => {
   if (!reading) return
 
   if (readingKey === "previous") {
-    currentInput.value = formatReadingInputValue("previous", reading)
+    setInputReading(currentInput, reading, formatReadingInputValue("previous", reading))
     setCurrentInputSource("manual")
     setCurrentPhotoStatus("")
     querySegmentState.current = null
     renderSegmentPicker("current")
   } else {
-    targetInput.value = formatReadingInputValue("next", reading)
+    setInputReading(targetInput, reading, formatReadingInputValue("next", reading))
     preferredSplitTargetSegmentIndex = null
     querySegmentState.target = null
     renderSegmentPicker("target")
