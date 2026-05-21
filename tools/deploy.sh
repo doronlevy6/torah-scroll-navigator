@@ -7,8 +7,9 @@ cd "$ROOT_DIR"
 DEFAULT_MESSAGE="Deploy $(date '+%Y-%m-%d %H:%M:%S %Z')"
 MESSAGE="${1:-$DEFAULT_MESSAGE}"
 ASSET_VERSION="$(date '+%Y%m%d%H%M%S')"
+export ASSET_VERSION
 
-perl -0pi -e "s/(app\\.js\\?v=)[^\\\"']+/\\\${1}$ASSET_VERSION/g; s/(styles\\.css\\?v=)[^\\\"']+/\\\${1}$ASSET_VERSION/g" index.html
+perl -0pi -e 's/(app\.js\?v=)[^"]+/$1 . $ENV{ASSET_VERSION}/ge; s/(styles\.css\?v=)[^"]+/$1 . $ENV{ASSET_VERSION}/ge' index.html
 
 git add -A
 
